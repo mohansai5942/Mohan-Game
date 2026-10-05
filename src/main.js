@@ -12,7 +12,7 @@ const hud = {
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x86a9bf);
-scene.fog = new THREE.Fog(0x86a9bf, 220, 720);
+scene.fog = new THREE.Fog(0x86a9bf, 280, 1100);
 
 const renderer = new THREE.WebGLRenderer({
   canvas,
@@ -27,7 +27,7 @@ renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.05;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 
-const camera = new THREE.PerspectiveCamera(67, innerWidth / innerHeight, 0.1, 1200);
+const camera = new THREE.PerspectiveCamera(67, innerWidth / innerHeight, 0.1, 1800);
 camera.position.set(0, 5, 9);
 
 const hemi = new THREE.HemisphereLight(0xd9edff, 0x314529, 1.7);
@@ -36,12 +36,12 @@ const sun = new THREE.DirectionalLight(0xffffff, 2.8);
 sun.position.set(180, 240, 100);
 sun.castShadow = true;
 sun.shadow.mapSize.set(1024, 1024);
-sun.shadow.camera.left = -280;
-sun.shadow.camera.right = 280;
-sun.shadow.camera.top = 280;
-sun.shadow.camera.bottom = -280;
+sun.shadow.camera.left = -500;
+sun.shadow.camera.right = 500;
+sun.shadow.camera.top = 500;
+sun.shadow.camera.bottom = -500;
 sun.shadow.camera.near = 10;
-sun.shadow.camera.far = 650;
+sun.shadow.camera.far = 1200;
 scene.add(sun);
 
 const world = new THREE.Group();
@@ -57,6 +57,7 @@ const particles = [];
 const parkedCars = [];
 const policeCars = [];
 const trafficLights = [];
+const allVehicles = [];
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const rand = (a, b) => a + Math.random() * (b - a);
@@ -160,7 +161,7 @@ function roadSegment(x,z,w,d) {
 }
 function laneMark(x,z,w,d) { box(x,.07,z,w,.035,d,M.line,world,false); }
 
-box(0,-.12,0,980,.2,980,M.grass,world,false);
+box(0,-.12,0,1200,.2,1200,M.grass,world,false);
 
 // Roads + sidewalks + lane markings.
 const roadCenters=[];
@@ -225,6 +226,34 @@ for(const x of roadCenters){
   }
 }
 
+function addLandmark(x,z,w,d,h,color,name){
+  const g=new THREE.Group();g.position.set(x,0,z);
+  const base=box(0,h/2,0,w,h,d,material(color,.55,.12),g);
+  base.castShadow=true;
+  const roof=box(0,h+.25,0,w+.6,.5,d+.6,M.glass,g,false);
+  const sign=box(0,h*.62,-d/2-.06,w*.55,h*.09,.08,M.line,g,false);
+  g.userData.name=name;world.add(g);
+  buildings.push(new THREE.Box3(new THREE.Vector3(x-w/2-.5,0,z-d/2-.5),new THREE.Vector3(x+w/2+.5,h,z+d/2+.5)));
+  buildingMeshes.push(base);
+  return g;
+}
+function addPark(x,z,size){
+  const g=new THREE.Group();g.position.set(x,0,z);
+  box(0,.04,0,size,.08,size,M.grass,g,false);
+  for(let i=0;i<18;i++) addTree(x+rand(-size*.42,size*.42),z+rand(-size*.42,size*.42),rand(.65,1.15));
+  for(let i=0;i<5;i++) box(rand(-size*.35,size*.35),.22,rand(-size*.35,size*.35),3,.35,1.5,M.white,g,false);
+  world.add(g);
+}
+addLandmark(-330,-330,70,70,34,0x314a6b,'Central Hospital');
+addLandmark(330,-330,90,60,48,0x3b3f49,'Mohan Financial Tower');
+addLandmark(330,330,100,70,22,0x7a503d,'City Mall');
+addLandmark(-330,330,120,90,18,0x355d4b,'Grand Stadium');
+addPark(-320,-80,85);
+addPark(320,80,85);
+addPark(0,330,95);
+addLandmark(520,0,120,70,16,0x3d4d5b,'Harbor Terminal');
+addLandmark(-520,0,130,80,12,0x5b5d63,'Airport Hangar');
+
 function makeCharacter(scale=1) {
   const g=new THREE.Group();
   box(0,1.4,0,.72,1.4,.42,pick(M.shirt),g);
@@ -255,8 +284,47 @@ function makeCar(x,z,color,rotation=0,kind='parked'){
   }
   box(0,.78,2.55,1.8,.12,.08,M.light,g,false);
   g.position.set(x,0,z); g.rotation.y=rotation;
-  g.userData={speed:0,occupied:false,kind,axis:Math.abs(Math.sin(rotation))>.7?'x':'z'};
+  g.userData={
+    speed:0,occupied:false,kind,
+    axis:Math.abs(Math.sin(rotation))>.7?'x':'z',
+    maxSpeed: kind==='bike'?38 : kind==='truck'||kind==='lorry'?24 : 32,
+    accel: kind==='bike'?42 : kind==='truck'||kind==='lorry'?22 : 30,
+    turnRate: kind==='bike'?2.4 : 1.8,
+    nextTurn: rand(70,180),
+    laneOffset: rand(-1.5,1.5)
+  };
   world.add(g);
+  allVehicles.push(g);
+  if(kind==='traffic') traffic.push(g); else parkedCars.push(g);
+  return g;
+}
+
+function makeTruck(x,z,color,rotation=0,kind='parked'){
+  const g=new THREE.Group();
+  box(0,.72,0,3.0,.9,5.8,M.cars[color],g);
+  box(0,1.35,-1.55,2.8,1.15,1.75,M.cars[3],g);
+  box(0,1.38,1.05,2.75,1.35,3.3,M.cars[color],g);
+  for(const side of [-1,1]) for(const end of [-1.8,1.8]){
+    const w=new THREE.Mesh(new THREE.CylinderGeometry(.48,.48,.34,12),M.wheel);
+    w.rotation.z=Math.PI/2; w.position.set(side*1.55,.48,end); w.castShadow=true; g.add(w);
+  }
+  g.position.set(x,0,z); g.rotation.y=rotation;
+  g.userData={speed:0,occupied:false,kind,axis:Math.abs(Math.sin(rotation))>.7?'x':'z',maxSpeed:kind==='lorry'?21:24,accel:20,turnRate:1.25,nextTurn:rand(70,180),laneOffset:0};
+  world.add(g); allVehicles.push(g);
+  if(kind==='traffic') traffic.push(g); else parkedCars.push(g);
+  return g;
+}
+
+function makeBike(x,z,color,rotation=0,kind='parked'){
+  const g=new THREE.Group();
+  box(0,.8,0,.5,.38,2.4,M.cars[color],g);
+  cylinder(0,1.05,-.65,.16,.55,M.wheel,g,10).rotation.z=Math.PI/2;
+  cylinder(0,1.05,.65,.16,.55,M.wheel,g,10).rotation.z=Math.PI/2;
+  cylinder(0,1.15,0,.12,.5,M.wheel,g,8);
+  box(0,1.35,-.15,.3,.45,.7,M.cars[color],g);
+  g.position.set(x,0,z); g.rotation.y=rotation;
+  g.userData={speed:0,occupied:false,kind,axis:Math.abs(Math.sin(rotation))>.7?'x':'z',maxSpeed:38,accel:42,turnRate:2.5,nextTurn:rand(50,140),laneOffset:0};
+  world.add(g); allVehicles.push(g);
   if(kind==='traffic') traffic.push(g); else parkedCars.push(g);
   return g;
 }
@@ -264,17 +332,35 @@ function makeCar(x,z,color,rotation=0,kind='parked'){
 // Parked player-accessible vehicles.
 makeCar(7,10,0,0);
 makeCar(-8,-10,1,Math.PI);
-makeCar(10,210,2,0);
-makeCar(-210,-10,5,Math.PI/2);
-makeCar(110,12,4,Math.PI/2);
+makeTruck(10,210,2,0);
+makeTruck(-210,-10,5,Math.PI/2);
+makeBike(110,12,4,Math.PI/2);
+makeBike(-110,-12,6,-Math.PI/2);
+makeCar(210,10,3,0);
+makeTruck(-310,10,0,Math.PI);
 
-// Moving traffic on both road directions.
+// Dense moving city fleet: cars, SUVs, trucks, lorries and bikes.
 const trafficSpawns=[
-  [-420,-100,0,1],[140,-420,0,1],[-320,100,Math.PI,1],[300,200,Math.PI,1],
-  [100,-260,Math.PI/2,0],[-100,330,-Math.PI/2,0],[400,0,Math.PI/2,0],[-400,200,-Math.PI/2,0],
-  [220,-200,Math.PI,1],[-250,300,0,1],[200,400,Math.PI/2,0],[-300,-400,-Math.PI/2,0]
+  [-420,-100,0,1,'car'],[140,-420,0,1,'truck'],[-320,100,Math.PI,1,'car'],[300,200,Math.PI,1,'lorry'],
+  [100,-260,Math.PI/2,0,'car'],[-100,330,-Math.PI/2,0,'bike'],[400,0,Math.PI/2,0,'truck'],[-400,200,-Math.PI/2,0,'car'],
+  [220,-200,Math.PI,1,'bike'],[-250,300,0,1,'car'],[200,400,Math.PI/2,0,'lorry'],[-300,-400,-Math.PI/2,0,'truck'],
+  [-40,-300,0,2,'car'],[80,300,Math.PI,3,'bike'],[-180,-200,Math.PI/2,1,'truck'],[180,120,-Math.PI/2,0,'car'],
+  [320,-320,0,4,'lorry'],[-320,320,Math.PI,5,'car'],[420,300,Math.PI/2,6,'bike'],[-420,-300,-Math.PI/2,2,'truck'],
+  [0,-420,0,3,'car'],[0,420,Math.PI,1,'lorry'],[-420,0,Math.PI/2,5,'car'],[420,0,-Math.PI/2,4,'bike']
 ];
-for(const [x,z,r,c] of trafficSpawns) makeCar(x,z,c,r,'traffic');
+for(const [x,z,r,c,type] of trafficSpawns){
+  if(type==='bike') makeBike(x,z,c,r,'traffic');
+  else if(type==='truck'||type==='lorry') makeTruck(x,z,c,r,'traffic');
+  else makeCar(x,z,c,r,'traffic');
+}
+for(let i=0;i<24;i++){
+  const p=pick(roadCenters), q=rand(-440,440), dir=Math.random()<.5?0:Math.PI;
+  const type=i%6===0?'lorry':i%4===0?'truck':i%3===0?'bike':'car';
+  const color=i%7;
+  if(type==='bike') makeBike(q,p,color,dir,'traffic');
+  else if(type==='truck'||type==='lorry') makeTruck(q,p,color,dir,'traffic');
+  else makeCar(q,p,color,dir,'traffic');
+}
 
 function makePoliceCar(x,z,rotation=0){
   const c=makeCar(x,z,4,rotation,'parked');
@@ -341,8 +427,8 @@ function moveObject(o,delta,r){
   if(circleBuildingCollision(o.position,r))o.position.x=ox;
   const oz=o.position.z; o.position.z+=delta.z;
   if(circleBuildingCollision(o.position,r))o.position.z=oz;
-  o.position.x=clamp(o.position.x,-470,470);
-  o.position.z=clamp(o.position.z,-470,470);
+  o.position.x=clamp(o.position.x,-575,575);
+  o.position.z=clamp(o.position.z,-575,575);
 }
 
 function nearestCar(){
@@ -357,12 +443,16 @@ function toggleVehicle(){
   const p=player.userData;
   if(p.vehicle){
     const c=p.vehicle;c.userData.occupied=false;p.vehicle=null;player.visible=true;
-    player.position.copy(c.position).add(new THREE.Vector3(Math.cos(c.rotation.y),0,-Math.sin(c.rotation.y)).multiplyScalar(2.4));
+    yaw=c.rotation.y;
+    cameraDistance=11;
+    player.position.copy(c.position).add(new THREE.Vector3(Math.cos(c.rotation.y),0,-Math.sin(c.rotation.y)).multiplyScalar(2.8));
     return;
   }
   const c=nearestCar();
   if(!c)return;
   p.vehicle=c;c.userData.occupied=true;player.visible=false;player.position.copy(c.position);
+  yaw=0;
+  cameraDistance=c.userData.kind==='bike'?7.5:c.userData.kind==='truck'||c.userData.kind==='lorry'?13:11;
 }
 function reload(){
   const p=player.userData;
@@ -394,12 +484,17 @@ function updatePlayer(dt){
     const c=p.vehicle;
     const throttle=(keys.KeyW?1:0)-(keys.KeyS?1:0);
     const steer=(keys.KeyD?1:0)-(keys.KeyA?1:0);
-    c.userData.speed+=throttle*30*dt;
-    c.userData.speed*=Math.pow(.25,dt);
-    c.userData.speed=clamp(c.userData.speed,-12,30);
-    c.rotation.y-=steer*1.8*clamp(Math.abs(c.userData.speed)/8,0,1)*dt;
+    const u=c.userData;
+    const radius=u.kind==='bike'?.55:u.kind==='truck'||u.kind==='lorry'?1.65:1.35;
+    u.speed+=throttle*u.accel*dt;
+    u.speed*=Math.pow(throttle===0?.34:.78,dt);
+    u.speed=clamp(u.speed,u.kind==='bike'?-14:u.kind==='truck'||u.kind==='lorry'?-10:-14,u.maxSpeed);
+    const steeringScale=clamp(Math.abs(u.speed)/6,0,1);
+    c.rotation.y-=steer*u.turnRate*steeringScale*dt;
     const f=new THREE.Vector3(Math.sin(c.rotation.y),0,Math.cos(c.rotation.y));
-    moveObject(c,f.multiplyScalar(c.userData.speed*dt),1.35);
+    moveObject(c,f.multiplyScalar(u.speed*dt),radius);
+    c.children.forEach((child,idx)=>{ if(idx>0 && child.geometry?.type==='CylinderGeometry') child.rotation.x += u.speed*dt*1.8; });
+    player.position.copy(c.position);
     player.position.copy(c.position);
     return;
   }
@@ -419,18 +514,33 @@ function updatePlayer(dt){
   if(player.position.y<=0){player.position.y=0;p.vy=0;p.grounded=true;}
 }
 
+function nearestRoad(v){
+  let best=roadCenters[0],d=Infinity;
+  for(const r of roadCenters){const q=Math.abs(v-r);if(q<d){d=q;best=r;}}
+  return best;
+}
 function updateTraffic(dt){
   for(const c of traffic){
-    const speed=9+Math.sin(c.position.x*.01+c.position.z*.02)*2;
+    const u=c.userData;
+    const targetSpeed=u.kind==='bike'?20:u.kind==='lorry'?11:u.kind==='truck'?13:16;
+    u.speed += (targetSpeed-u.speed)*dt*0.7;
     const forward=new THREE.Vector3(Math.sin(c.rotation.y),0,Math.cos(c.rotation.y));
-    moveObject(c,forward.multiplyScalar(speed*dt),1.25);
-    if(c.userData.axis==='x'){
-      if(c.position.x>475)c.position.x=-475;
-      if(c.position.x<-475)c.position.x=475;
-    }else{
-      if(c.position.z>475)c.position.z=-475;
-      if(c.position.z<-475)c.position.z=475;
+    moveObject(c,forward.multiplyScalar(u.speed*dt),u.kind==='bike'?.55:u.kind==='truck'||u.kind==='lorry'?1.55:1.25);
+
+    const atX=Math.abs(c.position.x-nearestRoad(c.position.x))<1.2;
+    const atZ=Math.abs(c.position.z-nearestRoad(c.position.z))<1.2;
+    if(atX&&atZ&&u.nextTurn<=0){
+      const roll=Math.random();
+      if(roll<.30) c.rotation.y += Math.PI/2;
+      else if(roll>.70) c.rotation.y -= Math.PI/2;
+      u.axis=Math.abs(Math.sin(c.rotation.y))>.7?'x':'z';
+      u.nextTurn=rand(55,130);
     }
+    u.nextTurn-=u.speed*dt;
+    if(c.position.x>575)c.position.x=-575;
+    if(c.position.x<-575)c.position.x=575;
+    if(c.position.z>575)c.position.z=-575;
+    if(c.position.z<-575)c.position.z=575;
   }
 }
 
@@ -500,7 +610,7 @@ function updateBullets(dt){
     for(const p of pedestrians)if(p.userData.alive&&p.position.distanceTo(b.position)<.72){
       p.userData.alive=false;p.visible=false;burst(b.position);hit=true;break;
     }
-    if(hit||b.userData.life<=0||Math.abs(b.position.x)>600||Math.abs(b.position.z)>600){
+    if(hit||b.userData.life<=0||Math.abs(b.position.x)>700||Math.abs(b.position.z)>700){
       world.remove(b);bullets.splice(i,1);
     }
   }
@@ -513,12 +623,15 @@ function updateBullets(dt){
 const cameraPosition=new THREE.Vector3(),cameraLook=new THREE.Vector3();
 const cameraRay=new THREE.Raycaster();
 function updateCamera(dt){
-  const target=player.userData.vehicle||player;
+  const vehicle=player.userData.vehicle;
+  const target=vehicle||player;
+  const baseYaw=vehicle ? vehicle.rotation.y : 0;
+  const orbitYaw=vehicle ? baseYaw+yaw : yaw;
   const h=Math.cos(pitch)*cameraDistance;
   cameraPosition.set(
-    target.position.x+Math.sin(yaw)*h,
-    target.position.y+1.7+Math.sin(pitch)*cameraDistance,
-    target.position.z+Math.cos(yaw)*h
+    target.position.x+Math.sin(orbitYaw)*h,
+    target.position.y+(vehicle?2.6:1.7)+Math.sin(pitch)*cameraDistance,
+    target.position.z+Math.cos(orbitYaw)*h
   );
   const from=target.position.clone().add(new THREE.Vector3(0,1.3,0));
   const dir=cameraPosition.clone().sub(from);const dist=dir.length();dir.normalize();
@@ -529,6 +642,15 @@ function updateCamera(dt){
   cameraLook.copy(target.position);cameraLook.y+=1.25;camera.lookAt(cameraLook);
 }
 
+function updateMinimap(){
+  const p=player.userData.vehicle||player;
+  const dot=document.querySelector('.player-dot');
+  if(dot){
+    dot.style.left=(50+p.position.x/12.0)+'%';
+    dot.style.top=(50+p.position.z/12.0)+'%';
+    dot.style.transform='translate(-50%,-50%)';
+  }
+}
 function updateUI(){
   const p=player.userData;
   hud.hp.textContent=Math.round(p.health);
@@ -551,7 +673,7 @@ function animate(now){
   updatePlayer(dt);updateTraffic(dt);updateTrafficLights(dt);updatePolice(dt);updatePedestrians(dt);updateBullets(dt);updateCamera(dt);
   if(mouseHeld&&pointerLocked)shoot();
   player.userData.wanted=Math.max(0,player.userData.wanted-dt*.02);
-  updateUI();
+  updateUI();updateMinimap();
   renderer.render(scene,camera);
   if(!window.__MOHAN_GAME_READY__){
     window.__MOHAN_GAME_READY__=true;
@@ -566,4 +688,4 @@ addEventListener('resize',()=>{
   renderer.setPixelRatio(Math.min(devicePixelRatio||1,1.5));
   renderer.setSize(innerWidth,innerHeight,false);
 });
-console.info('MOHAN GAME v2: roads + buildings + trees + traffic + pedestrians + police + traffic lights + vehicles loaded');
+console.info('MOHAN GAME v3: vehicle-follow camera + cars + bikes + trucks + lorries + police + landmarks + parks + traffic routing loaded');
