@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mohan Game — Open World</title>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <canvas id="game"></canvas>
+  <div id="hud">
+    <div class="brand">MOHAN<span>GAME</span></div>
+    <div class="stats">
+      <div>HP <b id="hp">100</b></div>
+      <div>ARMOR <b id="armor">50</b></div>
+      <div>AMMO <b id="ammo">12 / 72</b></div>
+      <div>WANTED <b id="wanted">☆ ☆ ☆ ☆ ☆</b></div>
+    </div>
+    <div class="mission" id="mission">MISSION: Explore the city</div>
+    <div class="prompt" id="prompt"></div>
+    <div class="crosshair">+</div>
+    <div class="minimap" id="minimap"><div class="player-dot"></div></div>
+    <div class="help">WASD Move · Shift Sprint · E Vehicle · LMB Fire · Space Jump · R Reload</div>
+  </div>
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>
