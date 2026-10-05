@@ -438,22 +438,11 @@ addEventListener('beforeunload',saveGame);
 addEventListener('keydown',e=>{if(e.code==='F5'){e.preventDefault();saveGame();}});
 
 
-const missionMarker=new THREE.Group();
-const missionRing=new THREE.Mesh(new THREE.TorusGeometry(7,.22,8,40),new THREE.MeshStandardMaterial({color:0xffdf4d,emissive:0x6a4a00,emissiveIntensity:1.6,roughness:.35}));
-missionRing.rotation.x=Math.PI/2;
-missionMarker.add(missionRing);
-const missionBeam=new THREE.Mesh(new THREE.CylinderGeometry(.12,.7,10,10,1,true),new THREE.MeshBasicMaterial({color:0xffdf4d,transparent:true,opacity:.2,side:THREE.DoubleSide}));
-missionBeam.position.y=5;missionMarker.add(missionBeam);world.add(missionMarker);
-
 function currentMission(){ return missions[missionState.index % missions.length]; }
 function updateMission(){
   const m=currentMission();
   missionMarker.position.copy(m.target); missionMarker.position.y=.15;
-  missionRing.rotation.z=elapsed*.7; missionBeam.scale.y=1+Math.sin(elapsed*3)*.12;
-  missionMarker.position.copy(m.target);
-  missionMarker.position.y=.15;
-  markerRing.rotation.z=elapsed*.7;
-  markerBeam.scale.y=1+Math.sin(elapsed*3)*.12;
+  markerRing.rotation.z=elapsed*.7; markerBeam.scale.y=1+Math.sin(elapsed*3)*.12;
   const target=player.userData.vehicle||player;
   const d=Math.hypot(target.position.x-m.target.x,target.position.z-m.target.z);
   if(!missionState.active) missionState.active=true;
