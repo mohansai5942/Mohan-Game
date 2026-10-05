@@ -27,7 +27,7 @@
       <div>HP <b id="hp">100</b></div>
       <div>ARMOR <b id="armor">50</b></div>
       <div>AMMO <b id="ammo">12 / 72</b></div>
-      <div>WANTED <b id="wanted">☆ ☆ ☆ ☆ ☆</b></div>
+      <div>WANTED <b id="wanted">☆ ☆ ☆ ☆ ☆</b></div><div>CASH <b id="cash">$2,500</b></div><div>SCORE <b id="score">0</b></div>
     </div>
     <div class="mission" id="mission">MISSION: Explore the city</div>
     <div class="prompt" id="prompt"></div>
@@ -48,6 +48,6 @@
     window.addEventListener('error', e => showRuntimeError(e.error?.stack || e.message || 'Unknown error'));
     window.addEventListener('unhandledrejection', e => showRuntimeError(e.reason?.stack || e.reason?.message || String(e.reason)));
   </script>
-  <script type="module" src="./src/main.js?v=20261005-3"></script>
+  <script type="module" src="./src/main.js?v=20261005-6"></script>
 </body>
 </html>
