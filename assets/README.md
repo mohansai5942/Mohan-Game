@@ -1,0 +1,1 @@
+# Assets\n\nPut only original or properly licensed game assets here.\n\nRecommended:\n- `assets/models/**/*.glb`\n- `assets/textures/**/*.webp`\n- `assets/audio/**/*`\n- `assets/fonts/**/*`\n\nDo not commit ripped GTA assets or other third-party copyrighted game files without a license.
