@@ -614,6 +614,13 @@ function animate(now) {
 
   updateUI();
   renderer.render(scene, camera);
+
+  if (!window.__MOHAN_GAME_READY__) {
+    window.__MOHAN_GAME_READY__ = true;
+    const boot = document.querySelector('#boot');
+    if (boot) boot.remove();
+    console.info('MOHAN GAME READY');
+  }
 }
 
 renderer.setAnimationLoop(animate);
