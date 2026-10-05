@@ -485,10 +485,6 @@ function updateMissionUI(){
   hud.mission.textContent=m.name+' — '+m.text+' · '+missionState.completed+' complete';
 }
 
-function saveGame(){const p=player.userData;localStorage.setItem('mohan-game-save',JSON.stringify({x:player.position.x,z:player.position.z,health:p.health,armor:p.armor,ammo:p.ammo,reserve:p.reserve,money:p.money,score:p.score,mission:missionState.index,completed:missionState.completed}));}
-function loadGame(){try{const s=localStorage.getItem('mohan-game-save');if(!s)return;const d=JSON.parse(s),p=player.userData;player.position.set(clamp(d.x||0,-575,575),0,clamp(d.z||0,-575,575));p.health=d.health??100;p.armor=d.armor??50;p.ammo=d.ammo??12;p.reserve=d.reserve??72;p.money=d.money??2500;p.score=d.score??0;missionState.index=d.mission??0;missionState.completed=d.completed??0;}catch(e){console.warn('Save ignored',e);}}
-addEventListener('beforeunload',saveGame);
-
 const keys=Object.create(null);
 let mouseHeld=false,pointerLocked=false,yaw=.7,pitch=.34,cameraDistance=11;
 addEventListener('keydown',e=>{
@@ -595,7 +591,6 @@ function updatePlayer(dt){
     moveObject(c,f.multiplyScalar(u.speed*dt),radius);
     if(Math.abs(u.speed)>8) p.health=Math.max(0,p.health-Math.abs(u.speed)*dt*.003);
     c.children.forEach((child,idx)=>{ if(idx>0 && child.geometry?.type==='CylinderGeometry') child.rotation.x += u.speed*dt*1.8; });
-    player.position.copy(c.position);
     player.position.copy(c.position);
     return;
   }
@@ -786,21 +781,27 @@ function updateMinimap(){
 }
 function updateUI(){
   const p=player.userData;
-  const cash=document.querySelector('#cash'),score=document.querySelector('#score');
-  if(cash) cash.textContent='
+  const cash=document.querySelector('#cash');
+  const score=document.querySelector('#score');
+  if(cash) cash.textContent='$'+Math.round(p.money).toLocaleString();
+  if(score) score.textContent=Math.round(p.score).toLocaleString();
   hud.hp.textContent=Math.round(p.health);
   hud.armor.textContent=Math.round(p.armor);
   hud.ammo.textContent=p.ammo+' / '+p.reserve;
   const stars=clamp(Math.ceil(p.wanted),0,5);
   hud.wanted.textContent='★ '.repeat(stars)+'☆ '.repeat(5-stars);
-  if(p.vehicle)hud.prompt.textContent='E — Exit · W/S Drive · A/D Steer · F5 Save';
-  else {const c=nearestCar();hud.prompt.textContent=c?'E — Enter vehicle · F5 Save':(pointerLocked?'WASD Move · Mouse Look · LMB Fire · F5 Save':'WASD Move · Click for Mouse Look · F5 Save');}
+  if(p.vehicle) hud.prompt.textContent='E — Exit · W/S Drive · A/D Steer · F5 Save';
+  else {
+    const c=nearestCar();
+    hud.prompt.textContent=c
+      ? 'E — Enter vehicle · F5 Save'
+      : (pointerLocked ? 'WASD Move · Mouse Look · LMB Fire · F5 Save' : 'WASD Move · Click for Mouse Look · F5 Save');
+  }
   if(p.wanted>=1) hud.mission.textContent='POLICE CHASE — Escape the pursuit';
   else if(p.wanted>.2) hud.mission.textContent='POLICE ALERT — Lose the heat';
   else updateMissionUI();
 }
 
-loadGame();
 loadGame();
 let previous=performance.now(),elapsed=0;
 function animate(now){
