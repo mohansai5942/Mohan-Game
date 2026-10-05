@@ -13,8 +13,13 @@
     }
   }
   </script>
+<style>
+    #boot{position:fixed;inset:0;display:grid;place-items:center;background:#0b1116;color:#fff;font:700 16px Inter,Arial,sans-serif;letter-spacing:2px;z-index:9999}
+    #runtime-error{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);max-width:min(720px,90vw);padding:18px 20px;border:1px solid #ff5b5b;border-radius:12px;background:#160b0b;color:#fff;font:14px/1.5 Consolas,monospace;z-index:10000;display:none;white-space:pre-wrap}
+  </style>
 </head>
 <body>
+  <div id="boot">Loading MOHAN GAME…</div>
   <canvas id="game"></canvas>
   <div id="hud">
     <div class="brand">MOHAN<span>GAME</span></div>
@@ -30,6 +35,19 @@
     <div class="minimap" id="minimap"><div class="player-dot"></div></div>
     <div class="help">WASD Move · Shift Sprint · Mouse Look · E Vehicle · LMB Fire · Space Jump · R Reload · Wheel Camera</div>
   </div>
-  <script type="module" src="./src/main.js"></script>
+  <div id="runtime-error"></div>
+  <script>
+    const showRuntimeError = (message) => {
+      const el = document.getElementById('runtime-error');
+      if (!el) return;
+      el.textContent = 'Game startup error:\n' + message;
+      el.style.display = 'block';
+      const boot = document.getElementById('boot');
+      if (boot) boot.style.display = 'none';
+    };
+    window.addEventListener('error', e => showRuntimeError(e.error?.stack || e.message || 'Unknown error'));
+    window.addEventListener('unhandledrejection', e => showRuntimeError(e.reason?.stack || e.reason?.message || String(e.reason)));
+  </script>
+  <script type="module" src="./src/main.js?v=20261005-3"></script>
 </body>
 </html>
