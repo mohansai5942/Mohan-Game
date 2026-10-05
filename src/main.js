@@ -443,7 +443,8 @@ function toggleVehicle(){
   const p=player.userData;
   if(p.vehicle){
     const c=p.vehicle;c.userData.occupied=false;p.vehicle=null;player.visible=true;
-    yaw=c.rotation.y;
+    // Keep the camera behind the vehicle after exiting.
+    yaw=0;
     cameraDistance=11;
     player.position.copy(c.position).add(new THREE.Vector3(Math.cos(c.rotation.y),0,-Math.sin(c.rotation.y)).multiplyScalar(2.8));
     return;
@@ -625,8 +626,10 @@ const cameraRay=new THREE.Raycaster();
 function updateCamera(dt){
   const vehicle=player.userData.vehicle;
   const target=vehicle||player;
+  // Vehicle forward is +Z in local space. The third-person camera must sit
+  // behind that forward direction, not in front of it.
   const baseYaw=vehicle ? vehicle.rotation.y : 0;
-  const orbitYaw=vehicle ? baseYaw+yaw : yaw;
+  const orbitYaw=vehicle ? baseYaw+Math.PI+yaw : yaw;
   const h=Math.cos(pitch)*cameraDistance;
   cameraPosition.set(
     target.position.x+Math.sin(orbitYaw)*h,
@@ -688,4 +691,4 @@ addEventListener('resize',()=>{
   renderer.setPixelRatio(Math.min(devicePixelRatio||1,1.5));
   renderer.setSize(innerWidth,innerHeight,false);
 });
-console.info('MOHAN GAME v3: vehicle-follow camera + cars + bikes + trucks + lorries + police + landmarks + parks + traffic routing loaded');
+console.info('MOHAN GAME v4: fixed vehicle reverse-camera direction + smooth third-person follow');
