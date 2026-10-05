@@ -55,6 +55,8 @@ const pedestrians = [];
 const bullets = [];
 const particles = [];
 const parkedCars = [];
+const policeCars = [];
+const trafficLights = [];
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const rand = (a, b) => a + Math.random() * (b - a);
@@ -217,6 +219,8 @@ for(const x of roadCenters){
     yellow.position.set(0,5.5,.19); g.add(yellow);
     const green=new THREE.Mesh(new THREE.SphereGeometry(.11,8,8),material(0x35a85a,.4));
     green.position.set(0,5.18,.19); g.add(green);
+    g.userData={phase:Math.random()*20,red,yellow,green};
+    trafficLights.push(g);
     world.add(g);
   }
 }
@@ -272,6 +276,23 @@ const trafficSpawns=[
 ];
 for(const [x,z,r,c] of trafficSpawns) makeCar(x,z,c,r,'traffic');
 
+function makePoliceCar(x,z,rotation=0){
+  const c=makeCar(x,z,4,rotation,'parked');
+  parkedCars.pop();
+  policeCars.push(c);
+  if(c.children[0]) c.children[0].material=M.police;
+  const bar=new THREE.Group();
+  const red=new THREE.Mesh(new THREE.BoxGeometry(.34,.12,.28),material(0xff3030,.3,.2));
+  const blue=new THREE.Mesh(new THREE.BoxGeometry(.34,.12,.28),material(0x3f7dff,.3,.2));
+  red.position.x=-.22; blue.position.x=.22; bar.add(red,blue);
+  bar.position.y=1.5; c.add(bar);
+  c.userData.police=true;
+  return c;
+}
+makePoliceCar(-40,-18,0);
+makePoliceCar(40,18,Math.PI);
+makePoliceCar(18,40,Math.PI/2);
+
 function makePedestrian(x,z,axis){
   const g=makeCharacter(rand(.85,1.02));
   g.position.set(x,0,z);
@@ -285,7 +306,7 @@ for(let i=0;i<48;i++){
 }
 
 const keys=Object.create(null);
-let mouseHeld=false,pointerLocked=false,yaw=0,pitch=.25,cameraDistance=8;
+let mouseHeld=false,pointerLocked=false,yaw=.7,pitch=.34,cameraDistance=11;
 addEventListener('keydown',e=>{
   keys[e.code]=true;
   if(e.code==='KeyE') toggleVehicle();
@@ -413,6 +434,47 @@ function updateTraffic(dt){
   }
 }
 
+function updateTrafficLights(dt){
+  for(const g of trafficLights){
+    g.userData.phase=(g.userData.phase+dt)%18;
+    const t=g.userData.phase;
+    const red=g.userData.red, yellow=g.userData.yellow, green=g.userData.green;
+    red.scale.setScalar(t<8?1.25:.65);
+    yellow.scale.setScalar(t>=8&&t<10?1.25:.65);
+    green.scale.setScalar(t>=10?1.25:.65);
+  }
+}
+
+function updatePolice(dt){
+  const wanted=player.userData.wanted;
+  for(const c of policeCars){
+    if(wanted<.6) continue;
+    const target=player.userData.vehicle||player;
+    const dx=target.position.x-c.position.x;
+    const dz=target.position.z-c.position.z;
+    const dist=Math.hypot(dx,dz);
+    if(dist<4){
+      player.userData.health=Math.max(0,player.userData.health-dt*5);
+      continue;
+    }
+    const desired=Math.atan2(dx,dz);
+    let diff=Math.atan2(Math.sin(desired-c.rotation.y),Math.cos(desired-c.rotation.y));
+    c.rotation.y+=clamp(diff,-1.5*dt,1.5*dt);
+    const speed=dist>35?15:8;
+    const forward=new THREE.Vector3(Math.sin(c.rotation.y),0,Math.cos(c.rotation.y));
+    moveObject(c,forward.multiplyScalar(speed*dt),1.35);
+    if(dist>120){
+      c.position.lerp(target.position,.015);
+    }
+  }
+  if(player.userData.health<=0){
+    player.userData.health=100;
+    player.userData.wanted=0;
+    player.position.set(0,0,0);
+    if(player.userData.vehicle){player.userData.vehicle.userData.occupied=false;player.userData.vehicle=null;player.visible=true;}
+  }
+}
+
 function updatePedestrians(dt){
   for(const p of pedestrians){
     if(!p.userData.alive)continue;
@@ -476,7 +538,7 @@ function updateUI(){
   hud.wanted.textContent='★ '.repeat(stars)+'☆ '.repeat(5-stars);
   if(p.vehicle)hud.prompt.textContent='E — Exit · W/S Drive · A/D Steer';
   else {const c=nearestCar();hud.prompt.textContent=c?'E — Enter vehicle':(pointerLocked?'WASD Move · Mouse Look · LMB Fire':'WASD Move · Click for Mouse Look');}
-  hud.mission.textContent=p.wanted>.2?'POLICE ALERT — Lose the heat':'MISSION: Explore the city';
+  hud.mission.textContent=p.wanted>=1?'POLICE CHASE — Escape the pursuit':p.wanted>.2?'POLICE ALERT — Lose the heat':'MISSION: Explore the city';
 }
 
 let previous=performance.now(),elapsed=0;
@@ -486,7 +548,7 @@ function animate(now){
   sun.intensity=2+daylight*1.2;hemi.intensity=1.3+daylight*.5;
   const sky=new THREE.Color().setHSL(.57,.18,.49+daylight*.1);
   scene.background.copy(sky);scene.fog.color.copy(sky);
-  updatePlayer(dt);updateTraffic(dt);updatePedestrians(dt);updateBullets(dt);updateCamera(dt);
+  updatePlayer(dt);updateTraffic(dt);updateTrafficLights(dt);updatePolice(dt);updatePedestrians(dt);updateBullets(dt);updateCamera(dt);
   if(mouseHeld&&pointerLocked)shoot();
   player.userData.wanted=Math.max(0,player.userData.wanted-dt*.02);
   updateUI();
@@ -504,4 +566,4 @@ addEventListener('resize',()=>{
   renderer.setPixelRatio(Math.min(devicePixelRatio||1,1.5));
   renderer.setSize(innerWidth,innerHeight,false);
 });
-console.info('MOHAN GAME: city build loaded');
+console.info('MOHAN GAME v2: roads + buildings + trees + traffic + pedestrians + police + traffic lights + vehicles loaded');
