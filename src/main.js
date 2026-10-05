@@ -270,7 +270,7 @@ function makeCharacter(scale=1) {
 function makePlayer(){
   const p=makeCharacter(1.12);
   p.position.set(0,0,0);
-  p.userData={health:100,armor:50,ammo:12,reserve:72,wanted:0,vehicle:null,vy:0,grounded:true};
+  p.userData={health:100,armor:50,ammo:12,reserve:72,wanted:0,vehicle:null,vy:0,grounded:true,money:2500,score:0,weapon:'PISTOL'};
   world.add(p);
   return p;
 }
@@ -394,19 +394,64 @@ for(let i=0;i<48;i++){
 }
 
 const missions = [
-  {name:'CITY DRIVE', text:'Reach the financial district', target:new THREE.Vector3(330,0,-330), radius:22},
-  {name:'PARK RUN', text:'Drive to the central park', target:new THREE.Vector3(-320,0,-80), radius:26},
-  {name:'STADIUM RUN', text:'Reach the Grand Stadium', target:new THREE.Vector3(-330,0,330), radius:28},
-  {name:'HARBOR RUN', text:'Reach the Harbor Terminal', target:new THREE.Vector3(520,0,0), radius:34}
+  {name:'CITY DRIVE', text:'Reach the financial district', target:new THREE.Vector3(330,0,-330), radius:22, reward:500},
+  {name:'PARK RUN', text:'Reach the central park', target:new THREE.Vector3(-320,0,-80), radius:26, reward:650},
+  {name:'STADIUM RUN', text:'Reach the Grand Stadium', target:new THREE.Vector3(-330,0,330), radius:28, reward:800},
+  {name:'HARBOR RUN', text:'Reach the Harbor Terminal', target:new THREE.Vector3(400,0,0), radius:30, reward:1000}
 ];
+
+const missionMarker = new THREE.Group();
+const markerRing = new THREE.Mesh(
+  new THREE.TorusGeometry(7, .22, 8, 40),
+  new THREE.MeshStandardMaterial({color:0xffdf4d, emissive:0x6a4a00, emissiveIntensity:1.8, roughness:.35})
+);
+markerRing.rotation.x=Math.PI/2;
+missionMarker.add(markerRing);
+const markerBeam = new THREE.Mesh(
+  new THREE.CylinderGeometry(.12,.65,10,10,1,true),
+  new THREE.MeshBasicMaterial({color:0xffdf4d,transparent:true,opacity:.22,side:THREE.DoubleSide})
+);
+markerBeam.position.y=5;
+missionMarker.add(markerBeam);
+world.add(missionMarker);
+
+function saveGame(){
+  const p=player.userData;
+  localStorage.setItem('mohan-game-save',JSON.stringify({
+    x:player.position.x,z:player.position.z,health:p.health,armor:p.armor,ammo:p.ammo,reserve:p.reserve,
+    wanted:p.wanted,money:p.money,score:p.score,mission:missionState.index,completed:missionState.completed
+  }));
+}
+function loadGame(){
+  try{
+    const raw=localStorage.getItem('mohan-game-save');
+    if(!raw)return;
+    const d=JSON.parse(raw),p=player.userData;
+    player.position.set(clamp(d.x??0,-575,575),0,clamp(d.z??0,-575,575));
+    p.health=d.health??100;p.armor=d.armor??50;p.ammo=d.ammo??12;p.reserve=d.reserve??72;
+    p.wanted=0;p.money=d.money??2500;p.score=d.score??0;
+    missionState.index=Math.max(0,Math.floor(d.mission??0));
+    missionState.completed=Math.max(0,Math.floor(d.completed??0));
+  }catch(e){console.warn('Save data ignored',e);}
+}
+addEventListener('beforeunload',saveGame);
+addEventListener('keydown',e=>{if(e.code==='F5'){e.preventDefault();saveGame();}});
+
 function currentMission(){ return missions[missionState.index % missions.length]; }
 function updateMission(){
   const m=currentMission();
+  missionMarker.position.copy(m.target);
+  missionMarker.position.y=.15;
+  markerRing.rotation.z=elapsed*.7;
+  markerBeam.scale.y=1+Math.sin(elapsed*3)*.12;
   const target=player.userData.vehicle||player;
   const d=Math.hypot(target.position.x-m.target.x,target.position.z-m.target.z);
   if(!missionState.active) missionState.active=true;
   if(d<=m.radius){
     missionState.completed++;
+    player.userData.money += m.reward;
+    player.userData.score += m.reward;
+    saveGame();
     missionState.index=(missionState.index+1)%missions.length;
     missionState.progress=0;
     missionState.active=true;
@@ -612,6 +657,14 @@ function updateTrafficLights(dt){
   }
 }
 
+
+function applyDamage(amount){
+  const p=player.userData;
+  const absorbed=Math.min(p.armor,amount*.65);
+  p.armor-=absorbed;
+  p.health=Math.max(0,p.health-(amount-absorbed));
+}
+
 function updatePolice(dt){
   const wanted=player.userData.wanted;
   for(const c of policeCars){
@@ -621,7 +674,7 @@ function updatePolice(dt){
     const dz=target.position.z-c.position.z;
     const dist=Math.hypot(dx,dz);
     if(dist<4){
-      player.userData.health=Math.max(0,player.userData.health-dt*5);
+      applyDamage(dt*5);
       continue;
     }
     const desired=Math.atan2(dx,dz);
@@ -665,7 +718,15 @@ function updateBullets(dt){
     const b=bullets[i];b.position.addScaledVector(b.userData.velocity,dt);b.userData.life-=dt;
     let hit=false;
     for(const p of pedestrians)if(p.userData.alive&&p.position.distanceTo(b.position)<.72){
-      p.userData.alive=false;p.visible=false;burst(b.position);hit=true;break;
+      p.userData.alive=false;p.visible=false;player.userData.score+=50;player.userData.wanted=clamp(player.userData.wanted+.55,0,5);burst(b.position);hit=true;break;
+    }
+    if(!hit){
+      for(const c of allVehicles){
+        if(c===player.userData.vehicle || !c.visible || c.userData.police) continue;
+        if(c.position.distanceTo(b.position)<vehicleRadius(c)){
+          c.userData.speed*=.35;player.userData.score+=10;burst(b.position);hit=true;break;
+        }
+      }
     }
     if(hit||b.userData.life<=0||Math.abs(b.position.x)>700||Math.abs(b.position.z)>700){
       world.remove(b);bullets.splice(i,1);
@@ -702,6 +763,14 @@ function updateCamera(dt){
 }
 
 function updateMinimap(){
+  const map=document.querySelector('.minimap');
+  if(map && !map.dataset.ready){
+    map.dataset.ready='1';
+    for(let i=-4;i<=4;i++){
+      const h=document.createElement('i');h.style.cssText=`position:absolute;left:0;right:0;top:${50+i*12}%;height:2px;background:#ffffff18;`;map.appendChild(h);
+      const v=document.createElement('i');v.style.cssText=`position:absolute;top:0;bottom:0;left:${50+i*12}%;width:2px;background:#ffffff18;`;map.appendChild(v);
+    }
+  }
   const p=player.userData.vehicle||player;
   const dot=document.querySelector('.player-dot');
   if(dot){
@@ -717,13 +786,14 @@ function updateUI(){
   hud.ammo.textContent=p.ammo+' / '+p.reserve;
   const stars=clamp(Math.ceil(p.wanted),0,5);
   hud.wanted.textContent='★ '.repeat(stars)+'☆ '.repeat(5-stars);
-  if(p.vehicle)hud.prompt.textContent='E — Exit · W/S Drive · A/D Steer';
-  else {const c=nearestCar();hud.prompt.textContent=c?'E — Enter vehicle':(pointerLocked?'WASD Move · Mouse Look · LMB Fire':'WASD Move · Click for Mouse Look');}
+  if(p.vehicle)hud.prompt.textContent='E — Exit · W/S Drive · A/D Steer · F5 Save';
+  else {const c=nearestCar();hud.prompt.textContent=c?'E — Enter vehicle · F5 Save':(pointerLocked?'WASD Move · Mouse Look · LMB Fire · F5 Save':'WASD Move · Click for Mouse Look · F5 Save');}
   if(p.wanted>=1) hud.mission.textContent='POLICE CHASE — Escape the pursuit';
   else if(p.wanted>.2) hud.mission.textContent='POLICE ALERT — Lose the heat';
   else updateMissionUI();
 }
 
+loadGame();
 let previous=performance.now(),elapsed=0;
 function animate(now){
   const dt=Math.min(.033,Math.max(.001,(now-previous)/1000));previous=now;elapsed+=dt;
@@ -733,7 +803,9 @@ function animate(now){
   scene.background.copy(sky);scene.fog.color.copy(sky);
   updatePlayer(dt);updateTraffic(dt);resolveVehicleCollisions();updateTrafficLights(dt);updatePolice(dt);updatePedestrians(dt);updateBullets(dt);updateMission();updateCamera(dt);
   if(mouseHeld&&pointerLocked)shoot();
-  player.userData.wanted=Math.max(0,player.userData.wanted-dt*.02);
+  player.userData.wanted=Math.max(0,player.userData.wanted-dt*.018);
+  if(player.userData.wanted>0 && Math.random()<dt*.08) player.userData.wanted=Math.min(5,player.userData.wanted+.015);
+  if(Math.floor(elapsed)%15===0 && Math.random()<dt*.25) saveGame();
   updateUI();updateMinimap();
   renderer.render(scene,camera);
   if(!window.__MOHAN_GAME_READY__){
@@ -749,4 +821,4 @@ addEventListener('resize',()=>{
   renderer.setPixelRatio(Math.min(devicePixelRatio||1,1.5));
   renderer.setSize(innerWidth,innerHeight,false);
 });
-console.info('MOHAN GAME v5: missions + traffic lights + vehicle collisions + police + open-world gameplay systems');
+console.info('MOHAN GAME v6: mission markers + save/load + rewards + armor damage + richer minimap + gameplay polish');
