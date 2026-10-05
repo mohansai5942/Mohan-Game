@@ -58,6 +58,8 @@ const parkedCars = [];
 const policeCars = [];
 const trafficLights = [];
 const allVehicles = [];
+const missionState = { index:0, active:false, progress:0, target:null, completed:0 };
+const worldObjects = [];
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const rand = (a, b) => a + Math.random() * (b - a);
@@ -391,6 +393,53 @@ for(let i=0;i<48;i++){
   else makePedestrian(road+pick([-12,-8,8,12]),rand(-430,430),'z');
 }
 
+const missions = [
+  {name:'CITY DRIVE', text:'Reach the financial district', target:new THREE.Vector3(330,0,-330), radius:22},
+  {name:'PARK RUN', text:'Drive to the central park', target:new THREE.Vector3(-320,0,-80), radius:26},
+  {name:'STADIUM RUN', text:'Reach the Grand Stadium', target:new THREE.Vector3(-330,0,330), radius:28},
+  {name:'HARBOR RUN', text:'Reach the Harbor Terminal', target:new THREE.Vector3(520,0,0), radius:34}
+];
+function currentMission(){ return missions[missionState.index % missions.length]; }
+function updateMission(){
+  const m=currentMission();
+  const target=player.userData.vehicle||player;
+  const d=Math.hypot(target.position.x-m.target.x,target.position.z-m.target.z);
+  if(!missionState.active) missionState.active=true;
+  if(d<=m.radius){
+    missionState.completed++;
+    missionState.index=(missionState.index+1)%missions.length;
+    missionState.progress=0;
+    missionState.active=true;
+    burst(target.position);
+  }
+  missionState.progress=clamp(1-d/650,0,1);
+}
+function vehicleRadius(c){
+  return c.userData.kind==='bike'?.9:c.userData.kind==='truck'||c.userData.kind==='lorry'?2.2:1.8;
+}
+function resolveVehicleCollisions(){
+  for(let i=0;i<allVehicles.length;i++){
+    const a=allVehicles[i];
+    if(!a.visible) continue;
+    for(let j=i+1;j<allVehicles.length;j++){
+      const b=allVehicles[j];
+      if(!b.visible || (a.userData.kind!=='traffic' && b.userData.kind!=='traffic')) continue;
+      const dx=a.position.x-b.position.x,dz=a.position.z-b.position.z;
+      const min=vehicleRadius(a)+vehicleRadius(b);
+      const d2=dx*dx+dz*dz;
+      if(d2>0.0001 && d2<min*min){
+        const d=Math.sqrt(d2),push=(min-d)*.5;
+        a.position.x+=(dx/d)*push;a.position.z+=(dz/d)*push;
+        b.position.x-=(dx/d)*push;b.position.z-=(dz/d)*push;
+        a.userData.speed*=.55;b.userData.speed*=.55;
+      }
+    }
+  }
+}
+function updateMissionUI(){
+  const m=currentMission();
+  hud.mission.textContent=m.name+' — '+m.text+' · '+missionState.completed+' complete';
+}
 const keys=Object.create(null);
 let mouseHeld=false,pointerLocked=false,yaw=.7,pitch=.34,cameraDistance=11;
 addEventListener('keydown',e=>{
@@ -433,7 +482,7 @@ function moveObject(o,delta,r){
 
 function nearestCar(){
   let best=null,d0=4.8;
-  for(const c of parkedCars) if(!c.userData.occupied){
+  for(const c of parkedCars) if(!c.userData.occupied && !c.userData.police){
     const d=c.position.distanceTo(player.position);
     if(d<d0){best=c;d0=d;}
   }
@@ -494,6 +543,7 @@ function updatePlayer(dt){
     c.rotation.y-=steer*u.turnRate*steeringScale*dt;
     const f=new THREE.Vector3(Math.sin(c.rotation.y),0,Math.cos(c.rotation.y));
     moveObject(c,f.multiplyScalar(u.speed*dt),radius);
+    if(Math.abs(u.speed)>8) p.health=Math.max(0,p.health-Math.abs(u.speed)*dt*.003);
     c.children.forEach((child,idx)=>{ if(idx>0 && child.geometry?.type==='CylinderGeometry') child.rotation.x += u.speed*dt*1.8; });
     player.position.copy(c.position);
     player.position.copy(c.position);
@@ -526,6 +576,12 @@ function updateTraffic(dt){
     const targetSpeed=u.kind==='bike'?20:u.kind==='lorry'?11:u.kind==='truck'?13:16;
     u.speed += (targetSpeed-u.speed)*dt*0.7;
     const forward=new THREE.Vector3(Math.sin(c.rotation.y),0,Math.cos(c.rotation.y));
+    const roadX=nearestRoad(c.position.x), roadZ=nearestRoad(c.position.z);
+    const nearIntersection=Math.abs(c.position.x-roadX)<3 && Math.abs(c.position.z-roadZ)<3;
+    const phase=((roadX+roadZ)*.03+elapsed)%18;
+    const redAhead=nearIntersection && phase<8;
+    const desiredSpeed=redAhead?1.5:targetSpeed;
+    u.speed += (desiredSpeed-u.speed)*dt*(redAhead?4:0.7);
     moveObject(c,forward.multiplyScalar(u.speed*dt),u.kind==='bike'?.55:u.kind==='truck'||u.kind==='lorry'?1.55:1.25);
 
     const atX=Math.abs(c.position.x-nearestRoad(c.position.x))<1.2;
@@ -663,7 +719,9 @@ function updateUI(){
   hud.wanted.textContent='★ '.repeat(stars)+'☆ '.repeat(5-stars);
   if(p.vehicle)hud.prompt.textContent='E — Exit · W/S Drive · A/D Steer';
   else {const c=nearestCar();hud.prompt.textContent=c?'E — Enter vehicle':(pointerLocked?'WASD Move · Mouse Look · LMB Fire':'WASD Move · Click for Mouse Look');}
-  hud.mission.textContent=p.wanted>=1?'POLICE CHASE — Escape the pursuit':p.wanted>.2?'POLICE ALERT — Lose the heat':'MISSION: Explore the city';
+  if(p.wanted>=1) hud.mission.textContent='POLICE CHASE — Escape the pursuit';
+  else if(p.wanted>.2) hud.mission.textContent='POLICE ALERT — Lose the heat';
+  else updateMissionUI();
 }
 
 let previous=performance.now(),elapsed=0;
@@ -673,7 +731,7 @@ function animate(now){
   sun.intensity=2+daylight*1.2;hemi.intensity=1.3+daylight*.5;
   const sky=new THREE.Color().setHSL(.57,.18,.49+daylight*.1);
   scene.background.copy(sky);scene.fog.color.copy(sky);
-  updatePlayer(dt);updateTraffic(dt);updateTrafficLights(dt);updatePolice(dt);updatePedestrians(dt);updateBullets(dt);updateCamera(dt);
+  updatePlayer(dt);updateTraffic(dt);resolveVehicleCollisions();updateTrafficLights(dt);updatePolice(dt);updatePedestrians(dt);updateBullets(dt);updateMission();updateCamera(dt);
   if(mouseHeld&&pointerLocked)shoot();
   player.userData.wanted=Math.max(0,player.userData.wanted-dt*.02);
   updateUI();updateMinimap();
@@ -691,4 +749,4 @@ addEventListener('resize',()=>{
   renderer.setPixelRatio(Math.min(devicePixelRatio||1,1.5));
   renderer.setSize(innerWidth,innerHeight,false);
 });
-console.info('MOHAN GAME v4: fixed vehicle reverse-camera direction + smooth third-person follow');
+console.info('MOHAN GAME v5: missions + traffic lights + vehicle collisions + police + open-world gameplay systems');
