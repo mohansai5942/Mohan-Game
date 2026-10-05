@@ -400,20 +400,20 @@ const missions = [
   {name:'HARBOR RUN', text:'Reach the Harbor Terminal', target:new THREE.Vector3(400,0,0), radius:30, reward:1000}
 ];
 
-const missionMarker = new THREE.Group();
-const markerRing = new THREE.Mesh(
+const navTargetMarker = new THREE.Group();
+const navTargetRing = new THREE.Mesh(
   new THREE.TorusGeometry(7, .22, 8, 40),
   new THREE.MeshStandardMaterial({color:0xffdf4d, emissive:0x6a4a00, emissiveIntensity:1.8, roughness:.35})
 );
-markerRing.rotation.x=Math.PI/2;
-missionMarker.add(markerRing);
-const markerBeam = new THREE.Mesh(
+navTargetRing.rotation.x=Math.PI/2;
+navTargetMarker.add(navTargetRing);
+const navTargetBeam = new THREE.Mesh(
   new THREE.CylinderGeometry(.12,.65,10,10,1,true),
   new THREE.MeshBasicMaterial({color:0xffdf4d,transparent:true,opacity:.22,side:THREE.DoubleSide})
 );
-markerBeam.position.y=5;
-missionMarker.add(markerBeam);
-world.add(missionMarker);
+navTargetBeam.position.y=5;
+navTargetMarker.add(navTargetBeam);
+world.add(navTargetMarker);
 
 function saveGame(){
   const p=player.userData;
@@ -441,8 +441,8 @@ addEventListener('keydown',e=>{if(e.code==='F5'){e.preventDefault();saveGame();}
 function currentMission(){ return missions[missionState.index % missions.length]; }
 function updateMission(){
   const m=currentMission();
-  missionMarker.position.copy(m.target); missionMarker.position.y=.15;
-  markerRing.rotation.z=elapsed*.7; markerBeam.scale.y=1+Math.sin(elapsed*3)*.12;
+  navTargetMarker.position.copy(m.target); navTargetMarker.position.y=.15;
+  navTargetRing.rotation.z=elapsed*.7; navTargetBeam.scale.y=1+Math.sin(elapsed*3)*.12;
   const target=player.userData.vehicle||player;
   const d=Math.hypot(target.position.x-m.target.x,target.position.z-m.target.z);
   if(!missionState.active) missionState.active=true;
