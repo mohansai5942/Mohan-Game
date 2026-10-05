@@ -495,12 +495,18 @@ function updateMissionUI(){
   const m=currentMission();
   hud.mission.textContent=m.name+' — '+m.text+' · '+missionState.completed+' complete';
 }
+
+function saveGame(){const p=player.userData;localStorage.setItem('mohan-game-save',JSON.stringify({x:player.position.x,z:player.position.z,health:p.health,armor:p.armor,ammo:p.ammo,reserve:p.reserve,money:p.money,score:p.score,mission:missionState.index,completed:missionState.completed}));}
+function loadGame(){try{const s=localStorage.getItem('mohan-game-save');if(!s)return;const d=JSON.parse(s),p=player.userData;player.position.set(clamp(d.x||0,-575,575),0,clamp(d.z||0,-575,575));p.health=d.health??100;p.armor=d.armor??50;p.ammo=d.ammo??12;p.reserve=d.reserve??72;p.money=d.money??2500;p.score=d.score??0;missionState.index=d.mission??0;missionState.completed=d.completed??0;}catch(e){console.warn('Save ignored',e);}}
+addEventListener('beforeunload',saveGame);
+
 const keys=Object.create(null);
 let mouseHeld=false,pointerLocked=false,yaw=.7,pitch=.34,cameraDistance=11;
 addEventListener('keydown',e=>{
   keys[e.code]=true;
   if(e.code==='KeyE') toggleVehicle();
   if(e.code==='KeyR') reload();
+  if(e.code==='F5'){e.preventDefault();saveGame();}
   if(e.code==='Escape') document.exitPointerLock?.();
 });
 addEventListener('keyup',e=>keys[e.code]=false);
@@ -805,6 +811,7 @@ function updateUI(){
   else updateMissionUI();
 }
 
+loadGame();
 loadGame();
 let previous=performance.now(),elapsed=0;
 function animate(now){
