@@ -251,7 +251,7 @@ function makeCar(x,z,color,rotation=0,kind='parked'){
   }
   box(0,.78,2.55,1.8,.12,.08,M.light,g,false);
   g.position.set(x,0,z); g.rotation.y=rotation;
-  g.userData={speed:0,occupied:false,kind};
+  g.userData={speed:0,occupied:false,kind,axis:Math.abs(Math.sin(rotation))>.7?'x':'z'};
   world.add(g);
   if(kind==='traffic') traffic.push(g); else parkedCars.push(g);
   return g;
@@ -403,7 +403,13 @@ function updateTraffic(dt){
     const speed=9+Math.sin(c.position.x*.01+c.position.z*.02)*2;
     const forward=new THREE.Vector3(Math.sin(c.rotation.y),0,Math.cos(c.rotation.y));
     moveObject(c,forward.multiplyScalar(speed*dt),1.25);
-    if(c.position.x>460||c.position.x<-460||c.position.z>460||c.position.z<-460)c.position.multiplyScalar(-.98);
+    if(c.userData.axis==='x'){
+      if(c.position.x>475)c.position.x=-475;
+      if(c.position.x<-475)c.position.x=475;
+    }else{
+      if(c.position.z>475)c.position.z=-475;
+      if(c.position.z<-475)c.position.z=475;
+    }
   }
 }
 
