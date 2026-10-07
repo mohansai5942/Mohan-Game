@@ -16,13 +16,16 @@
 <style>
     #boot{position:fixed;inset:0;display:grid;place-items:center;background:#0b1116;color:#fff;font:700 16px Inter,Arial,sans-serif;letter-spacing:2px;z-index:9999}
     #runtime-error{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);max-width:min(720px,90vw);padding:18px 20px;border:1px solid #ff5b5b;border-radius:12px;background:#160b0b;color:#fff;font:14px/1.5 Consolas,monospace;z-index:10000;display:none;white-space:pre-wrap}
+    #logo-context-menu{position:fixed;display:none;z-index:20000;min-width:190px;padding:5px;border:1px solid #ffffff22;border-radius:9px;background:#101216ee;box-shadow:0 12px 35px #000b;backdrop-filter:blur(12px)}
+    #logo-context-menu button{display:block;width:100%;padding:9px 11px;border:0;border-radius:6px;background:transparent;color:#fff;text-align:left;font:12px Inter,Arial,sans-serif;cursor:pointer}
+    #logo-context-menu button:hover{background:#ffffff12}
   </style>
 </head>
 <body>
   <div id="boot">Loading MOHAN GAME…</div>
   <canvas id="game"></canvas>
   <div id="hud">
-    <div class="brand">MOHAN<span>GAME</span></div>
+    <img id="game-logo" class="brand-logo" alt="MOHAN GAME" draggable="false" />
     <div class="stats">
       <div>HP <b id="hp">100</b></div>
       <div>ARMOR <b id="armor">50</b></div>
@@ -35,6 +38,7 @@
     <div class="minimap" id="minimap"><div class="player-dot"></div></div>
     <div class="help">WASD Move · Shift Sprint · Mouse Look · E Vehicle · LMB Fire · Space Jump · R Reload · Wheel Camera</div>
   </div>
+  <div id="logo-context-menu"><button id="open-logo-new-tab" type="button">Open image in new tab</button></div>
   <div id="runtime-error"></div>
   <script>
     const showRuntimeError = (message) => {
@@ -47,6 +51,33 @@
     };
     window.addEventListener('error', e => showRuntimeError(e.error?.stack || e.message || 'Unknown error'));
     window.addEventListener('unhandledrejection', e => showRuntimeError(e.reason?.stack || e.reason?.message || String(e.reason)));
+
+    const logoSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="420" height="120" viewBox="0 0 420 120"><rect width="420" height="120" rx="18" fill="#050505"/><text x="24" y="67" fill="#fff" font-family="Arial,Helvetica,sans-serif" font-size="48" font-weight="900" letter-spacing="7">MOHAN</text><text x="250" y="67" fill="#fff" fill-opacity=".62" font-family="Arial,Helvetica,sans-serif" font-size="30" font-weight="400" letter-spacing="4">GAME</text></svg>`;
+    const logoDataUrl = 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(logoSvg);
+    const logo = document.getElementById('game-logo');
+    const logoMenu = document.getElementById('logo-context-menu');
+    const openLogo = document.getElementById('open-logo-new-tab');
+    logo.src = logoDataUrl;
+
+    logo.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      logoMenu.style.display = 'block';
+      const x = Math.min(e.clientX, window.innerWidth - logoMenu.offsetWidth - 8);
+      const y = Math.min(e.clientY, window.innerHeight - logoMenu.offsetHeight - 8);
+      logoMenu.style.left = Math.max(8, x) + 'px';
+      logoMenu.style.top = Math.max(8, y) + 'px';
+    });
+
+    openLogo.addEventListener('click', () => {
+      window.open(logoDataUrl, '_blank', 'noopener,noreferrer');
+      logoMenu.style.display = 'none';
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!logoMenu.contains(e.target) && e.target !== logo) logoMenu.style.display = 'none';
+    });
+    window.addEventListener('resize', () => logoMenu.style.display = 'none');
+    window.addEventListener('scroll', () => logoMenu.style.display = 'none', {passive:true});
   </script>
   <script type="module" src="./src/game-runtime-v9.js?v=20261005-9"></script>
 </body>
